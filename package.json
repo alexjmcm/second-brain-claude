@@ -1,0 +1,17 @@
+{
+  "name": "second-brain",
+  "version": "1.0.0",
+  "description": "AI Second Brain: capture thoughts, classify with AI, store automatically",
+  "bin": {
+    "brain": "./src/cli.js"
+  },
+  "scripts": {
+    "bot": "node src/bot.js"
+  },
+  "dependencies": {
+    "@slack/bolt": "^4",
+    "dotenv": "^16",
+    "googleapis": "^140",
+    "openai": "^4"
+  }
+}
