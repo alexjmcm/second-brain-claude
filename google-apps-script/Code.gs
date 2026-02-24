@@ -19,6 +19,7 @@ You MUST respond with valid JSON only. No markdown, no explanation, no preamble.
 Categories (pick exactly one):
 - Task: Something the person needs to do. Has a clear action.
 - Idea: Something to explore later. No immediate action.
+- Project: A multi-step initiative, goal, or ongoing effort that spans multiple tasks.
 - Reference: A fact, link, quote, or piece of info to store.
 - Decision: Something the person decided. Record the reasoning.
 - Question: Something to research or ask someone about.
@@ -31,7 +32,7 @@ Priority rules:
 
 JSON schema:
 {
-  "category": "Task|Idea|Reference|Decision|Question|People",
+  "category": "Task|Idea|Project|Reference|Decision|Question|People",
   "priority": "High|Medium|Low",
   "summary": "One sentence summary (max 80 chars)",
   "next_action": "One concrete next step the person should take",
@@ -143,6 +144,7 @@ function classifyThought(text) {
 var CATEGORY_TABS = {
   'Task': 'Tasks',
   'Idea': 'Ideas',
+  'Project': 'Projects',
   'Reference': 'Reference',
   'Decision': 'Decisions',
   'Question': 'Questions',
