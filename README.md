@@ -26,7 +26,7 @@ Every Sunday at 5 PM:   -> Weekly summary with category breakdown to Slack
 | 1 | Drop Box | Capture thoughts | Slack `#brain-inbox` channel |
 | 2 | Sorter | AI classification | OpenAI gpt-4o-mini via Google Apps Script |
 | 3 | Form | Structured schema | JSON: category, priority, summary, next_action, tags, confidence |
-| 4 | Filing Cabinet | Storage | Google Sheets (Inbox tab + 6 category tabs) |
+| 4 | Filing Cabinet | Storage | Google Sheets (Inbox tab + 8 category tabs) |
 | 5 | Receipt | Confirmation | Threaded Slack reply + brain emoji |
 | 6 | Bouncer | Quality filter | Low confidence (<80%) gets [?] prefix + question mark emoji |
 | 7 | Daily Nudge | Morning summary | 6 AM Slack message with items grouped by priority |
@@ -48,14 +48,14 @@ Every Sunday at 5 PM:   -> Weekly summary with category breakdown to Slack
 
 ## Google Sheets Structure
 
-**Tabs:** Inbox (master log), Tasks, Ideas, People, Reference, Decisions, Questions
+**Tabs:** Inbox (master log), Tasks, Ideas, Projects, People, Reference, Decisions, Questions, Admin
 
 **Columns (all tabs):**
 
 | Column | Description |
 |--------|-------------|
 | Name | AI-generated summary (prefixed with [?] if low confidence) |
-| Category | Task, Idea, Reference, Decision, Question, or People |
+| Category | Task, Idea, Project, Reference, Decision, Question, People, or Admin |
 | Priority | High, Medium, or Low |
 | Next Action | One concrete next step |
 | Source | "Slack" or "Test" |
@@ -149,6 +149,18 @@ second-brain-claude/
 - **Google Sheets**: Free
 - **Google Apps Script**: Free (generous limits: 6 min/execution, 90 min/day total)
 - **Slack**: Free plan works (bot, webhooks, and channels all work on free tier)
+
+## Claude Code Skills
+
+Custom slash commands for Claude Code (the AI coding assistant):
+
+| Command | What it does |
+|---------|-------------|
+| `/add-category` | Adds a new classification category — updates the prompt, JSON schema, and tab routing in Code.gs |
+
+**Usage:** In Claude Code, type `/add-category Finance - investments, savings, budgets, and financial planning` and Claude will make all 3 required code changes automatically.
+
+Skills are defined in `.claude/skills/` and work when using Claude Code in this repo.
 
 ## Deprecated Approaches
 
