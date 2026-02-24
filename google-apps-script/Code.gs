@@ -176,6 +176,12 @@ function writeToSheet(classification, originalText, source) {
     mainSheet.appendRow(row);
   }
 
+  // Only write to category tab if confidence is high enough (bouncer)
+  if (classification.confidence < CONFIG.CONFIDENCE_THRESHOLD) {
+    Logger.log('Low confidence (' + classification.confidence + '%) — kept in Inbox only');
+    return;
+  }
+
   // Also write to the category-specific tab
   var tabName = CATEGORY_TABS[classification.category];
   Logger.log('Category: "' + classification.category + '" → Tab: "' + tabName + '"');
