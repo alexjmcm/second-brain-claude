@@ -24,6 +24,7 @@ Categories (pick exactly one):
 - Decision: Something the person decided. Record the reasoning.
 - Question: Something to research or ask someone about.
 - People: A note about a person — contact info, context, follow-ups, or something someone said.
+- Admin: Bills, payments, appointments, errands, subscriptions, account management, or paperwork.
 
 Priority rules:
 - High: Time-sensitive, blocking other work, or explicitly urgent
@@ -32,7 +33,7 @@ Priority rules:
 
 JSON schema:
 {
-  "category": "Task|Idea|Project|Reference|Decision|Question|People",
+  "category": "Task|Idea|Project|Reference|Decision|Question|People|Admin",
   "priority": "High|Medium|Low",
   "summary": "One sentence summary (max 80 chars)",
   "next_action": "One concrete next step the person should take",
@@ -149,6 +150,7 @@ var CATEGORY_TABS = {
   'Decision': 'Decisions',
   'Question': 'Questions',
   'People': 'People',
+  'Admin': 'Admin',
 };
 
 function writeToSheet(classification, originalText, source) {
