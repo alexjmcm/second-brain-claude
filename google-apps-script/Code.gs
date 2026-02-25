@@ -9,7 +9,7 @@ const CONFIG = {
   OPENAI_MODEL: 'gpt-4o-mini',
   SLACK_BOT_TOKEN: 'YOUR_SLACK_BOT_TOKEN',
   SHEET_NAME: 'Inbox',
-  CONFIDENCE_THRESHOLD: 80,
+  CONFIDENCE_THRESHOLD: 70,
 };
 
 const SYSTEM_PROMPT = `You are a thought classifier for a personal second brain system. Your job is to take a raw thought, message, or note and classify it into a structured format.
