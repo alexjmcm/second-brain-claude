@@ -98,7 +98,7 @@ function processMessage(text, channel, timestamp) {
       addSlackReaction(channel, timestamp, 'question');
       sendSlackWarning(channel, classification, text);
     } else {
-      addSlackReaction(channel, timestamp, 'brain');
+      addSlackReaction(channel, timestamp, 'white_check_mark');
     }
   } catch (err) {
     Logger.log('Error processing message: ' + err.message);
@@ -176,13 +176,7 @@ function writeToSheet(classification, originalText, source) {
     mainSheet.appendRow(row);
   }
 
-  // Only write to category tab if confidence is high enough (bouncer)
-  if (classification.confidence < CONFIG.CONFIDENCE_THRESHOLD) {
-    Logger.log('Low confidence (' + classification.confidence + '%) — kept in Inbox only');
-    return;
-  }
-
-  // Also write to the category-specific tab
+  // Always write to the category-specific tab (acts as archive)
   var tabName = CATEGORY_TABS[classification.category];
   Logger.log('Category: "' + classification.category + '" → Tab: "' + tabName + '"');
   if (tabName) {
