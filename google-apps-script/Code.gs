@@ -52,6 +52,71 @@ Rules:
 
 // --- SLACK WEBHOOK HANDLER ---
 function doPost(e) {
+  // Handle Slack interactive payloads (Block Kit dropdown selections)
+  if (e.parameter && e.parameter.payload) {
+    var interactionData = JSON.parse(e.parameter.payload);
+    if (interactionData.type === 'block_actions') {
+      var action = interactionData.actions[0];
+      if (action.action_id === 'mark_done') {
+        var rowNumber = parseInt(action.selected_option.value, 10);
+        var channel = interactionData.channel.id;
+        var messageTs = interactionData.message.ts;
+
+        var summary = markItemDone(rowNumber);
+        var responseText = summary
+          ? 'Marked as done: *' + summary.toString().substring(0, 30) + '* ✓'
+          : 'Could not find the item.';
+
+        var url = 'https://slack.com/api/chat.update';
+        var payload = {
+          channel: channel,
+          ts: messageTs,
+          text: responseText,
+          blocks: [{ type: 'section', text: { type: 'mrkdwn', text: responseText } }],
+        };
+        var options = {
+          method: 'post',
+          contentType: 'application/json',
+          headers: { 'Authorization': 'Bearer ' + CONFIG.SLACK_BOT_TOKEN },
+          payload: JSON.stringify(payload),
+          muteHttpExceptions: true,
+        };
+        UrlFetchApp.fetch(url, options);
+      }
+
+      if (action.action_id === 'reclassify_category') {
+        var newCategory = action.selected_option.value;
+        var blockId = action.block_id;
+        var originalText = decodeURIComponent(blockId.replace('fix_', ''));
+        var channel = interactionData.channel.id;
+        var messageTs = interactionData.message.ts;
+
+        var success = reclassifyItem(originalText, newCategory);
+        var responseText = success
+          ? 'Reclassified as *' + newCategory + '* ✓'
+          : 'Could not find the item to reclassify.';
+
+        // Update the dropdown message with confirmation
+        var url = 'https://slack.com/api/chat.update';
+        var payload = {
+          channel: channel,
+          ts: messageTs,
+          text: responseText,
+          blocks: [{ type: 'section', text: { type: 'mrkdwn', text: responseText } }],
+        };
+        var options = {
+          method: 'post',
+          contentType: 'application/json',
+          headers: { 'Authorization': 'Bearer ' + CONFIG.SLACK_BOT_TOKEN },
+          payload: JSON.stringify(payload),
+          muteHttpExceptions: true,
+        };
+        UrlFetchApp.fetch(url, options);
+      }
+    }
+    return ContentService.createTextOutput('ok');
+  }
+
   var data = JSON.parse(e.postData.contents);
 
   // Handle Slack URL verification challenge
@@ -87,6 +152,18 @@ function doPost(e) {
 
 // --- CORE LOGIC ---
 function processMessage(text, channel, timestamp) {
+  // Intercept "fix" command — show dropdown to reclassify last item
+  if (text.trim().toLowerCase() === 'fix') {
+    handleFixCommand(channel, timestamp);
+    return;
+  }
+
+  // Intercept "done" command — show dropdown to mark an item as done
+  if (text.trim().toLowerCase() === 'done') {
+    handleDoneCommand(channel, timestamp);
+    return;
+  }
+
   try {
     var classification = classifyThought(text);
     writeToSheet(classification, text, 'Slack');
@@ -255,6 +332,288 @@ function addSlackReaction(channel, timestamp, emoji) {
     channel: channel,
     timestamp: timestamp,
     name: emoji,
+  };
+
+  var options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'Authorization': 'Bearer ' + CONFIG.SLACK_BOT_TOKEN },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true,
+  };
+
+  UrlFetchApp.fetch(url, options);
+}
+
+// --- FIX COMMAND (reclassify last item) ---
+function handleFixCommand(channel, timestamp) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+    var lastRow = sheet.getLastRow();
+
+    if (lastRow < 2) {
+      sendSlackReply(channel, timestamp, 'Nothing to fix — Inbox is empty.');
+      return;
+    }
+
+    var row = sheet.getRange(lastRow, 1, 1, 10).getValues()[0];
+    var summary = row[0];       // Name (column 1)
+    var category = row[1];      // Category (column 2)
+    var originalText = row[8];  // Original (column 9)
+
+    sendFixDropdown(channel, timestamp, summary, category, originalText);
+  } catch (err) {
+    Logger.log('Error handling fix command: ' + err.message);
+    sendSlackReply(channel, timestamp, 'Error: ' + err.message);
+  }
+}
+
+function sendFixDropdown(channel, timestamp, summary, currentCategory, originalText) {
+  var categories = Object.keys(CATEGORY_TABS);
+  var options = categories.map(function(cat) {
+    return {
+      text: { type: 'plain_text', text: cat },
+      value: cat,
+    };
+  });
+
+  var initialOption = null;
+  categories.forEach(function(cat) {
+    if (cat === currentCategory) {
+      initialOption = { text: { type: 'plain_text', text: cat }, value: cat };
+    }
+  });
+
+  var blocks = [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: '*Fix classification for:*\n>' + summary + '\n_Currently: ' + currentCategory + '_',
+      },
+    },
+    {
+      type: 'actions',
+      block_id: 'fix_' + encodeURIComponent(originalText).substring(0, 200),
+      elements: [
+        {
+          type: 'static_select',
+          action_id: 'reclassify_category',
+          placeholder: { type: 'plain_text', text: 'Pick correct category' },
+          options: options,
+          initial_option: initialOption,
+        },
+      ],
+    },
+  ];
+
+  var url = 'https://slack.com/api/chat.postMessage';
+
+  var payload = {
+    channel: channel,
+    thread_ts: timestamp,
+    text: 'Fix classification for: ' + summary,
+    blocks: blocks,
+  };
+
+  var requestOptions = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'Authorization': 'Bearer ' + CONFIG.SLACK_BOT_TOKEN },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true,
+  };
+
+  UrlFetchApp.fetch(url, requestOptions);
+}
+
+function reclassifyItem(originalText, newCategory) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+  var data = sheet.getDataRange().getValues();
+
+  // Find the row in Inbox by matching Original column (column 9, index 8)
+  var rowIndex = -1;
+  for (var i = data.length - 1; i >= 1; i--) {
+    if (data[i][8] === originalText) {
+      rowIndex = i + 1; // 1-based row number
+      break;
+    }
+  }
+
+  if (rowIndex === -1) {
+    Logger.log('Could not find row for: ' + originalText);
+    return false;
+  }
+
+  var rowData = sheet.getRange(rowIndex, 1, 1, 10).getValues()[0];
+  var oldCategory = rowData[1];
+
+  // Update category in Inbox
+  sheet.getRange(rowIndex, 2).setValue(newCategory);
+
+  // Remove [?] prefix if present
+  var name = rowData[0].toString();
+  if (name.indexOf('[?] ') === 0) {
+    sheet.getRange(rowIndex, 1).setValue(name.substring(4));
+    rowData[0] = name.substring(4);
+  }
+
+  // Delete from old category tab
+  var oldTabName = CATEGORY_TABS[oldCategory];
+  if (oldTabName) {
+    var oldSheet = ss.getSheetByName(oldTabName);
+    if (oldSheet) {
+      var oldData = oldSheet.getDataRange().getValues();
+      for (var j = oldData.length - 1; j >= 1; j--) {
+        if (oldData[j][8] === originalText) {
+          oldSheet.deleteRow(j + 1);
+          break;
+        }
+      }
+    }
+  }
+
+  // Add to new category tab
+  var newTabName = CATEGORY_TABS[newCategory];
+  if (newTabName) {
+    var newSheet = ss.getSheetByName(newTabName);
+    if (newSheet) {
+      rowData[1] = newCategory;
+      newSheet.appendRow(rowData);
+    }
+  }
+
+  Logger.log('Reclassified from ' + oldCategory + ' to ' + newCategory);
+  return true;
+}
+
+// --- DONE COMMAND (mark item as done) ---
+function handleDoneCommand(channel, timestamp) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+    var data = sheet.getDataRange().getValues();
+
+    // Find items with Status = "Inbox" (column 7, index 6)
+    var inboxItems = [];
+    for (var i = data.length - 1; i >= 1; i--) {
+      if (data[i][6] === 'Inbox') {
+        inboxItems.push({ row: i + 1, summary: data[i][0], original: data[i][8] });
+      }
+      if (inboxItems.length >= 10) break; // Limit to 10 most recent
+    }
+
+    if (inboxItems.length === 0) {
+      sendSlackReply(channel, timestamp, 'No items in Inbox to mark as done.');
+      return;
+    }
+
+    sendDoneDropdown(channel, timestamp, inboxItems);
+  } catch (err) {
+    Logger.log('Error handling done command: ' + err.message);
+    sendSlackReply(channel, timestamp, 'Error: ' + err.message);
+  }
+}
+
+function sendDoneDropdown(channel, timestamp, items) {
+  var options = items.map(function(item) {
+    var label = item.summary.toString().substring(0, 15);
+    if (item.summary.toString().length > 15) label += '…';
+    return {
+      text: { type: 'plain_text', text: label },
+      value: String(item.row),
+    };
+  });
+
+  var blocks = [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: '*Mark as done:*\nPick an item from your Inbox:',
+      },
+    },
+    {
+      type: 'actions',
+      block_id: 'done_action',
+      elements: [
+        {
+          type: 'static_select',
+          action_id: 'mark_done',
+          placeholder: { type: 'plain_text', text: 'Pick an item' },
+          options: options,
+        },
+      ],
+    },
+  ];
+
+  var url = 'https://slack.com/api/chat.postMessage';
+
+  var payload = {
+    channel: channel,
+    thread_ts: timestamp,
+    text: 'Mark an item as done',
+    blocks: blocks,
+  };
+
+  var requestOptions = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'Authorization': 'Bearer ' + CONFIG.SLACK_BOT_TOKEN },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true,
+  };
+
+  UrlFetchApp.fetch(url, requestOptions);
+}
+
+function markItemDone(rowNumber) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+  var lastRow = sheet.getLastRow();
+
+  if (rowNumber < 2 || rowNumber > lastRow) {
+    Logger.log('Invalid row number: ' + rowNumber);
+    return null;
+  }
+
+  var rowData = sheet.getRange(rowNumber, 1, 1, 10).getValues()[0];
+  var summary = rowData[0];
+  var category = rowData[1];
+  var originalText = rowData[8];
+
+  // Update status in Inbox
+  sheet.getRange(rowNumber, 7).setValue('Done');
+
+  // Also update status in the category tab
+  var tabName = CATEGORY_TABS[category];
+  if (tabName) {
+    var catSheet = ss.getSheetByName(tabName);
+    if (catSheet) {
+      var catData = catSheet.getDataRange().getValues();
+      for (var i = catData.length - 1; i >= 1; i--) {
+        if (catData[i][8] === originalText) {
+          catSheet.getRange(i + 1, 7).setValue('Done');
+          Logger.log('Marked as Done in ' + tabName + ' tab too');
+          break;
+        }
+      }
+    }
+  }
+
+  Logger.log('Marked row ' + rowNumber + ' as Done');
+  return summary;
+}
+
+function sendSlackReply(channel, timestamp, text) {
+  var url = 'https://slack.com/api/chat.postMessage';
+
+  var payload = {
+    channel: channel,
+    thread_ts: timestamp,
+    text: text,
   };
 
   var options = {
