@@ -164,6 +164,25 @@ function processMessage(text, channel, timestamp) {
     return;
   }
 
+  // Intercept "daily" command — trigger daily nudge on demand
+  var cmd = text.trim().toLowerCase();
+  if (cmd === 'daily') {
+    handleDailyCommand(channel, timestamp);
+    return;
+  }
+
+  // Intercept "inbox" command — show Inbox items
+  if (cmd === 'inbox') {
+    handleListCommand(channel, timestamp, 'Inbox');
+    return;
+  }
+
+  // Intercept tab commands (tasks, ideas, projects, etc.)
+  if (COMMAND_TABS[cmd]) {
+    handleListCommand(channel, timestamp, COMMAND_TABS[cmd]);
+    return;
+  }
+
   try {
     var classification = classifyThought(text);
     writeToSheet(classification, text, 'Slack');
@@ -228,6 +247,18 @@ var CATEGORY_TABS = {
   'Question': 'Questions',
   'People': 'People',
   'Admin': 'Admin',
+};
+
+// Map Slack commands to sheet tab names
+var COMMAND_TABS = {
+  'tasks': 'Tasks',
+  'ideas': 'Ideas',
+  'projects': 'Projects',
+  'reference': 'Reference',
+  'decisions': 'Decisions',
+  'questions': 'Questions',
+  'people': 'People',
+  'admin': 'Admin',
 };
 
 function writeToSheet(classification, originalText, source) {
@@ -619,8 +650,77 @@ function sendSlackReply(channel, timestamp, text) {
   UrlFetchApp.fetch(url, options);
 }
 
-// --- DAILY NUDGE ---
-function dailyNudge() {
+// --- DAILY / LIST COMMANDS ---
+function handleDailyCommand(channel, timestamp) {
+  var message = buildDailyMessage();
+  if (!message) {
+    sendSlackReply(channel, timestamp, 'Inbox is empty — nothing to report.');
+    return;
+  }
+  sendSlackReply(channel, timestamp, message);
+}
+
+function handleListCommand(channel, timestamp, tabName) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(tabName);
+
+  if (!sheet) {
+    sendSlackReply(channel, timestamp, 'Tab "' + tabName + '" not found.');
+    return;
+  }
+
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+
+  var nameIdx = headers.indexOf('Name');
+  var categoryIdx = headers.indexOf('Category');
+  var priorityIdx = headers.indexOf('Priority');
+  var nextActionIdx = headers.indexOf('Next Action');
+  var statusIdx = headers.indexOf('Status');
+
+  var activeItems = data.slice(1).filter(function(row) {
+    return row[statusIdx] === 'Inbox';
+  });
+
+  if (activeItems.length === 0) {
+    sendSlackReply(channel, timestamp, 'No active items in ' + tabName + '.');
+    return;
+  }
+
+  var high = activeItems.filter(function(row) { return row[priorityIdx] === 'High'; });
+  var medium = activeItems.filter(function(row) { return row[priorityIdx] === 'Medium'; });
+  var low = activeItems.filter(function(row) { return row[priorityIdx] === 'Low'; });
+
+  var message = tabName + ' — ' + activeItems.length + ' active items:\n\n';
+
+  if (high.length > 0) {
+    message += '--- HIGH PRIORITY ---\n';
+    high.forEach(function(row) {
+      message += '• ' + row[categoryIdx] + ' — ' + row[nameIdx] + '\n';
+      message += '  Next: ' + row[nextActionIdx] + '\n';
+    });
+    message += '\n';
+  }
+
+  if (medium.length > 0) {
+    message += '--- MEDIUM ---\n';
+    medium.forEach(function(row) {
+      message += '• ' + row[categoryIdx] + ' — ' + row[nameIdx] + '\n';
+    });
+    message += '\n';
+  }
+
+  if (low.length > 0) {
+    message += '--- LOW ---\n';
+    low.forEach(function(row) {
+      message += '• ' + row[categoryIdx] + ' — ' + row[nameIdx] + '\n';
+    });
+  }
+
+  sendSlackReply(channel, timestamp, message);
+}
+
+function buildDailyMessage() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
   var data = sheet.getDataRange().getValues();
@@ -637,7 +737,7 @@ function dailyNudge() {
   });
 
   if (inboxItems.length === 0) {
-    return;
+    return null;
   }
 
   var high = inboxItems.filter(function(row) { return row[priorityIdx] === 'High'; });
@@ -670,7 +770,14 @@ function dailyNudge() {
     });
   }
 
-  // Need channel ID for daily nudge — find it from the sheet or hardcode
+  return message;
+}
+
+// --- DAILY NUDGE (scheduled trigger) ---
+function dailyNudge() {
+  var message = buildDailyMessage();
+  if (!message) return;
+
   var channelId = PropertiesService.getScriptProperties().getProperty('channelId');
   if (!channelId) {
     Logger.log('No channel ID set. Run setChannelId() first.');
