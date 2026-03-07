@@ -85,13 +85,13 @@ function doPost(e) {
       }
 
       if (action.action_id === 'reclassify_category') {
-        var newCategory = action.selected_option.value;
-        var blockId = action.block_id;
-        var originalText = decodeURIComponent(blockId.replace('fix_', ''));
+        var parts = action.selected_option.value.split('|');
+        var newCategory = parts[0];
+        var rowNumber = parseInt(parts[1], 10);
         var channel = interactionData.channel.id;
         var messageTs = interactionData.message.ts;
 
-        var success = reclassifyItem(originalText, newCategory);
+        var success = reclassifyItem(rowNumber, newCategory);
         var responseText = success
           ? 'Reclassified as *' + newCategory + '* ✓'
           : 'Could not find the item to reclassify.';
@@ -362,26 +362,26 @@ function handleFixCommand(channel, timestamp) {
     var category = row[1];      // Category (column 2)
     var originalText = row[8];  // Original (column 9)
 
-    sendFixDropdown(channel, timestamp, summary, category, originalText);
+    sendFixDropdown(channel, timestamp, summary, category, lastRow);
   } catch (err) {
     Logger.log('Error handling fix command: ' + err.message);
     sendSlackReply(channel, timestamp, 'Error: ' + err.message);
   }
 }
 
-function sendFixDropdown(channel, timestamp, summary, currentCategory, originalText) {
+function sendFixDropdown(channel, timestamp, summary, currentCategory, rowNumber) {
   var categories = Object.keys(CATEGORY_TABS);
   var options = categories.map(function(cat) {
     return {
       text: { type: 'plain_text', text: cat },
-      value: cat,
+      value: cat + '|' + rowNumber,
     };
   });
 
   var initialOption = null;
   categories.forEach(function(cat) {
     if (cat === currentCategory) {
-      initialOption = { text: { type: 'plain_text', text: cat }, value: cat };
+      initialOption = { text: { type: 'plain_text', text: cat }, value: cat + '|' + rowNumber };
     }
   });
 
@@ -395,7 +395,7 @@ function sendFixDropdown(channel, timestamp, summary, currentCategory, originalT
     },
     {
       type: 'actions',
-      block_id: 'fix_' + encodeURIComponent(originalText).substring(0, 200),
+      block_id: 'fix_action',
       elements: [
         {
           type: 'static_select',
@@ -428,35 +428,27 @@ function sendFixDropdown(channel, timestamp, summary, currentCategory, originalT
   UrlFetchApp.fetch(url, requestOptions);
 }
 
-function reclassifyItem(originalText, newCategory) {
+function reclassifyItem(rowNumber, newCategory) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
-  var data = sheet.getDataRange().getValues();
+  var lastRow = sheet.getLastRow();
 
-  // Find the row in Inbox by matching Original column (column 9, index 8)
-  var rowIndex = -1;
-  for (var i = data.length - 1; i >= 1; i--) {
-    if (data[i][8] === originalText) {
-      rowIndex = i + 1; // 1-based row number
-      break;
-    }
-  }
-
-  if (rowIndex === -1) {
-    Logger.log('Could not find row for: ' + originalText);
+  if (rowNumber < 2 || rowNumber > lastRow) {
+    Logger.log('Invalid row number: ' + rowNumber);
     return false;
   }
 
-  var rowData = sheet.getRange(rowIndex, 1, 1, 10).getValues()[0];
+  var rowData = sheet.getRange(rowNumber, 1, 1, 10).getValues()[0];
   var oldCategory = rowData[1];
+  var originalText = rowData[8];
 
   // Update category in Inbox
-  sheet.getRange(rowIndex, 2).setValue(newCategory);
+  sheet.getRange(rowNumber, 2).setValue(newCategory);
 
   // Remove [?] prefix if present
   var name = rowData[0].toString();
   if (name.indexOf('[?] ') === 0) {
-    sheet.getRange(rowIndex, 1).setValue(name.substring(4));
+    sheet.getRange(rowNumber, 1).setValue(name.substring(4));
     rowData[0] = name.substring(4);
   }
 
