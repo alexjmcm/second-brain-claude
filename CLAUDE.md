@@ -25,8 +25,11 @@ Inbox (master log), Tasks, Ideas, Projects, Reference, Decisions, Questions, Peo
 6. Daily nudge (8 AM) and weekly nudge (Sunday 5 PM) via time triggers
 
 ## Slack Commands
-- **"fix"** — Shows a dropdown to reclassify the last item into a different category. Updates both Inbox and category tabs.
-- **"done"** — Shows a dropdown of recent Inbox items. Selecting one marks it as "Done" in both Inbox and category tabs.
+- **fix** — Shows a dropdown to reclassify the last item into a different category. Updates both Inbox and category tabs.
+- **done** — Shows a dropdown of recent Inbox items. Selecting one marks it as "Done" in both Inbox and category tabs.
+- **daily** — Triggers the daily nudge on demand (all Inbox items grouped by priority).
+- **inbox** — Lists all active items from the Inbox tab.
+- **tasks / ideas / projects / reference / decisions / questions / people / admin** — Lists active items from the corresponding category tab.
 
 ## Important Rules
 - **Deployment**: ALWAYS use Deploy > New deployment. Never use "Manage deployments > edit > New version" — it's unreliable.
