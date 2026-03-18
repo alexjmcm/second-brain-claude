@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "open-brain": {
+      "type": "http",
+      "url": "https://euldvkqagvvvxfzbgpxj.supabase.co/functions/v1/mcp-server"
+    }
+  }
+}

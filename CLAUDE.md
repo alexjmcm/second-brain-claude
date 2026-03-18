@@ -57,8 +57,9 @@ Slack (#open-brain-inbox) → Supabase Edge Function → OpenAI (gpt-4o-mini) �
                                                           + vector embeddings for semantic search
 ```
 
-### Key File
-- `supabase/functions/slack-webhook/index.ts` — Edge Function handling all logic.
+### Key Files
+- `supabase/functions/slack-webhook/index.ts` — Edge Function handling Slack webhook + all logic.
+- `supabase/functions/mcp-server/index.ts` — MCP server Edge Function for AI-client access.
 
 ### Storage
 Single `thoughts` table in Supabase Postgres with columns: raw_text, category, priority, confidence, embedding (vector), metadata (JSON), status
@@ -77,8 +78,16 @@ Single `thoughts` table in Supabase Postgres with columns: raw_text, category, p
 ### Open Brain Deployment
 ```bash
 npx supabase functions deploy slack-webhook --project-ref euldvkqagvvvxfzbgpxj
+npx supabase functions deploy mcp-server --project-ref euldvkqagvvvxfzbgpxj
 ```
-After deploying: update BOTH Slack URLs in the "Open Brain" Slack app (Event Subscriptions + Interactivity).
+After deploying slack-webhook: update BOTH Slack URLs in the "Open Brain" Slack app (Event Subscriptions + Interactivity).
+
+### MCP Server
+- URL: `https://euldvkqagvvvxfzbgpxj.supabase.co/functions/v1/mcp-server`
+- Protocol: MCP over HTTP (JSON-RPC), protocol version `2024-11-05`
+- Tools: `search_thoughts` (semantic search via vector embeddings), `list_thoughts` (filter by category/priority/status), `add_thought` (classify + embed + store), `mark_done`, `daily_summary`
+- Config: `.mcp.json` in project root (used by Claude Code and other MCP clients)
+- Any MCP-compatible AI client (Claude Code, Claude Desktop, ChatGPT, Cursor) can connect using the URL above
 
 ---
 
