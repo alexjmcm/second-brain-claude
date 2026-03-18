@@ -65,7 +65,7 @@ Slack (#open-brain-inbox) → Supabase Edge Function → OpenAI (gpt-4o-mini) �
 Single `thoughts` table in Supabase Postgres with columns: raw_text, category, priority, confidence, embedding (vector), metadata (JSON), status
 
 ### How It Works
-1. User sends message in `#open-brain-inbox` Slack channel (private)
+1. User sends message in `#open-brain` Slack channel
 2. Slack webhook hits Supabase Edge Function
 3. Function deduplicates, calls OpenAI to classify + generate embedding
 4. Inserts into `thoughts` table with vector embedding
